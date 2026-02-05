@@ -11,7 +11,8 @@
 	<groupId>com.yeager</groupId>
 	<artifactId>coffee</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>coffee</name>
+    <packaging>pom</packaging>
+    <name>coffee</name>
 	<description>Coffee Backend</description>
 	<url/>
 	<licenses>
@@ -20,7 +21,10 @@
 	<developers>
 		<developer/>
 	</developers>
-	<scm>
+    <modules>
+        <module>untitled</module>
+    </modules>
+    <scm>
 		<connection/>
 		<developerConnection/>
 		<tag/>
