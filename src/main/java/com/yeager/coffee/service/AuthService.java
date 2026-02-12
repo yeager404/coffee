@@ -5,6 +5,7 @@ import com.yeager.coffee.dto.request.RegisterRequest;
 import com.yeager.coffee.dto.response.AuthResponse;
 import com.yeager.coffee.model.User;
 import com.yeager.coffee.repository.UserRepository;
+import com.yeager.coffee.security.JwtUtils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
