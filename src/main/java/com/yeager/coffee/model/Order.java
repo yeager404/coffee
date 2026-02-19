@@ -29,17 +29,6 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /**
-     * How this looks in DB
-     * orders
-     * ------
-     * id
-     * user_id  ← FOREIGN KEY → users.id
-     * total_amount
-     * status
-     * created_at
-     */
-
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();

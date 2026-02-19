@@ -34,3 +34,6 @@ build/
 
 ### YAML Files ###
 **/*.yml
+
+### SQL Files ###
+**/*.sql

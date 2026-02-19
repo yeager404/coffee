@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity     // This class is now managed by JPA
+@Entity // This class is now managed by JPA
 @Table(name = "beans")
 public class Bean {
     @Id
@@ -41,5 +41,5 @@ public class Bean {
      */
 
     @Version
-    private Integer version;
+    private Long version;
 }

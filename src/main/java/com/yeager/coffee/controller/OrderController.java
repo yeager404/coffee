@@ -29,7 +29,7 @@ public class OrderController {
     private final OrderRepository orderRepository;
 
     @PostMapping
-    @PreAuthorize("hasAuthority('CUSTOMER')")
+    @PreAuthorize("hasAnyAuthority('CUSTOMER', 'ADMIN')")
     public ResponseEntity<Long> placeOrder(@Valid @RequestBody PlaceOrderRequest request, Principal principal) {
         // 1. Get the User ID from the Security Context (JWT)
         User user = userRepository.findByEmail(principal.getName())
@@ -41,7 +41,7 @@ public class OrderController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('CUSTOMER')")
+    @PreAuthorize("hasAnyAuthority('CUSTOMER', 'ADMIN')")
     public ResponseEntity<Page<OrderSummaryDto>> getMyOrders(Principal principal, Pageable pageable) {
         User user = userRepository.findByEmail(principal.getName())
                 .orElseThrow();
