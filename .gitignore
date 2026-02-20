@@ -33,7 +33,5 @@ build/
 .vscode/
 
 ### YAML Files ###
-**/*.yml
 
 ### SQL Files ###
-**/*.sql
