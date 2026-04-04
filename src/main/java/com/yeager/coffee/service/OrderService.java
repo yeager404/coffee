@@ -3,18 +3,14 @@ package com.yeager.coffee.service;
 import com.yeager.coffee.dto.request.PlaceOrderRequest;
 import com.yeager.coffee.event.dto.OrderCreatedEvent;
 import com.yeager.coffee.event.publisher.OrderEventPublisher;
-import com.yeager.coffee.model.Bean;
-import com.yeager.coffee.model.Order;
-import com.yeager.coffee.model.OrderItem;
-import com.yeager.coffee.model.User;
-import com.yeager.coffee.repository.BeanRepository;
-import com.yeager.coffee.repository.OrderRepository;
-import com.yeager.coffee.repository.UserRepository;
+import com.yeager.coffee.model.*;
+import com.yeager.coffee.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,56 +22,95 @@ public class OrderService {
     private final UserRepository userRepository;
     private final BeanRepository beanRepository;
     private final InventoryService inventoryService;
+    private final AnalyticsEventRepository analyticsEventRepository;
     private final OrderEventPublisher eventPublisher;
 
     @Transactional
-    public Long placeOrder(Long userId, PlaceOrderRequest request){
-        // 1. Fetch User
+    public Long placeOrder(Long userId, PlaceOrderRequest request) {
+
+        // 1. Fetch user
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        // 2. Build Order Object
+        String location = normalizeLocation(request.getLocation());
+
+        // 2. Build order
         Order order = Order.builder()
                 .user(user)
                 .status(Order.OrderStatus.PENDING)
                 .totalAmount(BigDecimal.ZERO)
+                .location(location)
                 .build();
 
-        // 3. Process Items & Reduce stock
         BigDecimal total = BigDecimal.ZERO;
         List<OrderCreatedEvent.ItemDto> eventItems = new ArrayList<>();
+        List<AnalyticsEvent> analyticsEvents = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
 
-        for(PlaceOrderRequest.ItemRequest itemReq: request.getItems()){
+        // 3. Process items
+        for (PlaceOrderRequest.ItemRequest itemReq : request.getItems()) {
             Bean bean = beanRepository.findById(itemReq.getBeanId())
                     .orElseThrow(() -> new IllegalArgumentException("Bean not found"));
 
-            //Check & Reduce Inventory
             inventoryService.reduceStock(bean.getId(), itemReq.getQuantity());
 
-            // Create Order Item (Snapshotting Price)
             OrderItem orderItem = OrderItem.builder()
                     .bean(bean)
-                    .quantity(itemReq.getQuantity()) // Assumes Quantity is Int, if Double logic changes slighlty
+                    .quantity(itemReq.getQuantity())
                     .priceAtPurchase(bean.getBasePricePerKg())
                     .build();
 
             order.addOrderItem(orderItem);
 
-            //Calculate Totals
             BigDecimal itemTotal = bean.getBasePricePerKg().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
             total = total.add(itemTotal);
 
-            // Add to Event Data
-            eventItems.add(new OrderCreatedEvent.ItemDto(bean.getId(), itemReq.getQuantity()));
+            // Build denormalised analytics record (written to DB for Python batch jobs)
+            analyticsEvents.add(AnalyticsEvent.builder()
+                    .orderId(order.getId()) // will be set after save below — patched in step 4
+                    .beanId(bean.getId())
+                    .beanName(bean.getName())
+                    .location(location)
+                    .quantityKg(itemReq.getQuantity())
+                    .unitPrice(bean.getBasePricePerKg())
+                    .orderMonth(now.getMonthValue())
+                    .orderDayOfWeek(now.getDayOfWeek().getValue())
+                    .orderHour(now.getHour())
+                    .recordedAt(now)
+                    .build());
+
+            // Build event payload (streamed to RabbitMQ → Python real-time consumer)
+            eventItems.add(new OrderCreatedEvent.ItemDto(
+                    bean.getId(),
+                    bean.getName(),
+                    itemReq.getQuantity(),
+                    bean.getBasePricePerKg()
+            ));
         }
 
         order.setTotalAmount(total);
         Order savedOrder = orderRepository.save(order);
 
-        // 4. Fire Event to RabbitMQ
-        OrderCreatedEvent event = new OrderCreatedEvent(savedOrder.getId(), savedOrder.getCreatedAt(), eventItems);
+        // 4. Patch orderId now that we have the generated PK, then persist analytics rows
+        analyticsEvents.forEach(e -> e.setOrderId(savedOrder.getId()));
+        analyticsEventRepository.saveAll(analyticsEvents);
+
+        // 5. Publish event to RabbitMQ
+        OrderCreatedEvent event = new OrderCreatedEvent(
+                savedOrder.getId(),
+                savedOrder.getCreatedAt(),
+                location,
+                eventItems
+        );
         eventPublisher.publishOrderCreated(event);
 
         return savedOrder.getId();
+    }
+
+    private String normalizeLocation(String location) {
+        if (location == null || location.isBlank()) {
+            return "UNKNOWN";
+        }
+        return location.trim().toUpperCase();
     }
 }

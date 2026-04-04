@@ -23,6 +23,9 @@ public class StockPrediction {
     private String beanName;
 
     @Column(nullable = false)
+    private String location;
+
+    @Column(nullable = false)
     private LocalDate predictedDate; // The day the prediction was made
 
     private Double recommendedRestockAmount;

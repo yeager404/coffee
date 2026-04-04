@@ -21,7 +21,6 @@ public class AdminDashboardController {
 
     @GetMapping("/predictions")
     public ResponseEntity<List<StockPrediction>> getLatestPredictions() {
-        // Fetch predictions where 'restockNeeded' is TRUE
-        return ResponseEntity.ok(predictionRepository.findByRestockNeededTrue());
+        return ResponseEntity.ok(predictionRepository.findLatestRestockAlerts());
     }
 }

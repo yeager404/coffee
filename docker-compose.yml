@@ -3,7 +3,7 @@ services:
     image: postgres:15-alpine
     container_name: coffee_postgres
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
@@ -11,17 +11,57 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
     container_name: coffee_rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_PORT:-55672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-55673}:15672"
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
     restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ml_service:
+    build:
+      context: ./ml_service
+      dockerfile: Dockerfile
+    container_name: coffee_ml_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=coffee_db
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - RABBIT_HOST=rabbitmq
+      - RABBIT_PORT=5672
+      - RABBIT_USER=guest
+      - RABBIT_PASSWORD=guest
+      - RABBIT_VHOST=/
+      - MODEL_PATH=/app/models/demand_model.pkl
+      - RETRAIN_INTERVAL_H=${ML_RETRAIN_INTERVAL_H:-6}
+      - MIN_TRAIN_ROWS=${ML_MIN_TRAIN_ROWS:-50}
+      - FORECAST_DAYS=${ML_FORECAST_DAYS:-14}
+    volumes:
+      - ml_models:/app/models   # persist trained model across restarts
+    restart: on-failure
 
 volumes:
   postgres_data:
+  ml_models:

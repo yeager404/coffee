@@ -6,6 +6,7 @@ import com.yeager.coffee.event.publisher.OrderEventPublisher;
 import com.yeager.coffee.model.Bean;
 import com.yeager.coffee.model.Order;
 import com.yeager.coffee.model.User;
+import com.yeager.coffee.repository.AnalyticsEventRepository;
 import com.yeager.coffee.repository.BeanRepository;
 import com.yeager.coffee.repository.OrderRepository;
 import com.yeager.coffee.repository.UserRepository;
@@ -30,6 +31,7 @@ class OrderServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private BeanRepository beanRepository;
     @Mock private InventoryService inventoryService;
+    @Mock private AnalyticsEventRepository analyticsEventRepository;
     @Mock private OrderEventPublisher eventPublisher;
 
     @InjectMocks private OrderService orderService;
@@ -59,6 +61,7 @@ class OrderServiceTest {
         // Assert
         assertNotNull(orderId);
         verify(inventoryService).reduceStock(beanId, 2); // Verify interaction
+        verify(analyticsEventRepository).saveAll(any()); // Verify analytics persistence
         verify(eventPublisher).publishOrderCreated(any()); // Verify event
     }
 }
